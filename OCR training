@@ -1,1 +1,134 @@
-print("hello")
+import os
+os.environ['KAGGLE_USERNAME'] = 'rakeshbhujel'
+os.environ['KAGGLE_KEY'] = 'fb4ac1f68ae0679fbe04dfb9ba085299'
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+!kaggle datasets download -d meowmeowmeowmeowmeow/gtsrb-german-traffic-sign
+
+!unzip gtsrb-german-traffic-sign.zip
+
+import pandas as pd
+
+df_train = pd.read_csv('Train.csv')
+
+df_train.shape
+df_train.head()
+df_train.iloc[0]
+from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
+plt.imshow(np.array(Image.open(df_train['Path'][3800])
+
+def load_data(df):
+  images = []
+  labels = []
+
+  for i in range(len(df)):
+    img = Image.open(df['Path'].iloc[i])
+    img = img.resize((60,60))
+    images.append(np.array(img))
+    labels.append(df['ClassId'].iloc[i])
+
+  return images, labels
+  
+  train_data, train_labels = load_data(df_train)
+
+df_test = pd.read_csv('Test.csv')
+
+test_data, test_labels = load_data(df_test)
+
+plt.imshow(train_data[4500])
+
+train_data = np.asarray(train_data)
+test_data = np.asarray(test_data)
+
+train_data = train_data / 255.0
+test_data = test_data / 255.0
+
+print(test_data)
+train_data.shape
+len(train_labels)
+from sklearn.preprocessing import OneHotEncoder
+
+onehot = OneHotEncoder()
+train_labels = np.reshape(train_labels, (-1,1))
+train_labels = onehot.fit_transform(train_labels).toarray()
+
+train_labels[0]
+
+len(train_labels[0])
+
+from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPool2D, Dropout
+from tensorflow.keras import Model
+import tensorflow as tf
+
+class MyModel(Model):
+  def __init__(self):
+    super().__init__()
+    self.conv1 = Conv2D(32, 3, activation='relu')
+    self.pool1 = MaxPool2D((2,2))
+    self.conv2 = Conv2D(64, 3, activation='relu')
+    self.pool2 = MaxPool2D((2,2))
+    self.flatten = Flatten()
+    self.dense1 = Dense(512, activation='relu')
+    self.dropout1 = Dropout(0.4)
+    self.dense2 = Dense(128, activation='relu')
+    self.dropout2 = Dropout(0.4)
+    self.dense3 = Dense(43, activation='softmax')
+    
+  
+  def call(self, x):
+    x = self.conv1(x)
+    x = self.pool1(x)
+    x = self.conv2(x)
+    x = self.pool2(x)
+    x = self.flatten(x)
+    x = self.dense1(x)
+    x = self.dropout1(x)
+    x = self.dense2(x)
+    x = self.dropout2(x)
+    x = self.dense3(x)
+    return x
+
+
+model = MyModel()
+print(model)
+
+
+loss_object = tf.keras.losses.CategoricalCrossentropy()
+optimization = tf.keras.optimizers.Adam()
+
+train_loss = tf.keras.metrics.Mean(name='train_loss')
+train_accuracy = tf.keras.metrics.CategoricalAccuracy(name='train_acc')
+
+train_df = tf.data.Dataset.from_tensor_slices((train_data, train_labels)).shuffle(10000).batch(32)
+
+@tf.function
+def train_step(images, labels):
+  with tf.GradientTape() as tape:
+    predictions = model(images)
+    loss = loss_object(labels, predictions)
+  gradients = tape.gradient(loss, model.trainable_variables)
+  optimization.apply_gradients(zip(gradients, model.trainable_variables))
+
+  train_loss(loss)
+  train_accuracy(labels, predictions)
+  
+  
+  epochs = 5
+for epoch in range(epochs):
+  for images, labels in train_df:
+    train_step(images, labels)
+
+  print("Epoch : {}, Loss : {}, Accuracy : {}".format(epoch, train_loss.result(), train_accuracy.result()))
+  train_loss.reset_states()
+  train_accuracy.reset_states()
+  
+  predictions = np.argmax(model(test_data), axis=1)
+  
+  predictions[9]
+  
+  print(test_labels[9])
